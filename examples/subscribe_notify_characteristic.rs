@@ -10,9 +10,9 @@ use tokio::time;
 use uuid::Uuid;
 
 /// Only devices whose name contains this string will be tried.
-const PERIPHERAL_NAME_MATCH_FILTER: &str = "Neuro";
+const PERIPHERAL_NAME_MATCH_FILTER: &str = "GZUT-MIDI";
 /// UUID of the characteristic for which we should subscribe to notifications.
-const NOTIFY_CHARACTERISTIC_UUID: Uuid = Uuid::from_u128(0x6e400002_b534_f393_67a9_e50e24dccA9e);
+const NOTIFY_CHARACTERISTIC_UUID: Uuid = Uuid::from_u128(0x7772e5db_3868_4112_a1a9_f2669d106bf3);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .start_scan(ScanFilter::default())
             .await
             .expect("Can't scan BLE adapter for connected devices...");
-        time::sleep(Duration::from_secs(2)).await;
+        time::sleep(Duration::from_secs(15)).await;
         let peripherals = adapter.peripherals().await?;
 
         if peripherals.is_empty() {
@@ -66,6 +66,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     if is_connected {
                         println!("Discover peripheral {:?} services...", local_name);
                         peripheral.discover_services().await?;
+
+                        for service in peripheral.services() {
+                            println!(
+                                "Service UUID {}, primary: {}",
+                                service.uuid, service.primary
+                            );
+                        }
+
                         for characteristic in peripheral.characteristics() {
                             println!("Checking characteristic {:?}", characteristic);
                             // Subscribe to notifications from the characteristic with the selected
@@ -77,7 +85,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 peripheral.subscribe(&characteristic).await?;
                                 // Print the first 4 notifications received.
                                 let mut notification_stream =
-                                    peripheral.notifications().await?.take(4);
+                                    peripheral.notifications().await?;
                                 // Process while the BLE connection is not broken or stopped.
                                 while let Some(data) = notification_stream.next().await {
                                     println!(

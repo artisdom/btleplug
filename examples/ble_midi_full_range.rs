@@ -3,6 +3,7 @@
 
 use btleplug::api::{Central, CharPropFlags, Manager as _, Peripheral, ScanFilter, WriteType};
 use btleplug::platform::Manager;
+use btleplug::Error as BtleplugError;
 use futures::stream::StreamExt;
 use std::time::Duration;
 use tokio::time;
@@ -190,23 +191,53 @@ async fn write_with_fallback(
             .await
         {
             Ok(()) => return Ok(()),
-            Err(err) if supports_with_response => {
-                eprintln!(
-                    "Write without response failed ({}); retrying with response",
-                    err
-                );
+            Err(err) => {
+                if should_try_with_response(&err, supports_with_response) {
+                    eprintln!(
+                        "Write without response failed ({}); retrying with response",
+                        err
+                    );
+                } else {
+                    return Err(augment_write_error(err));
+                }
             }
-            Err(err) => return Err(err),
         }
     }
 
-    if supports_with_response {
+    if supports_with_response || supports_without_response {
         return peripheral
             .write(characteristic, data, WriteType::WithResponse)
-            .await;
+            .await
+            .map_err(augment_write_error);
     }
 
     Err(btleplug::Error::NotSupported(
         "BLE MIDI characteristic is not writable".into(),
     ))
+}
+
+fn should_try_with_response(err: &btleplug::Error, supports_with_response: bool) -> bool {
+    supports_with_response || is_not_authorized_error(err)
+}
+
+fn is_not_authorized_error(err: &btleplug::Error) -> bool {
+    let text = err.to_string();
+    text.contains("Not Authorized") || text.contains("Not authorized")
+}
+
+fn augment_write_error(err: btleplug::Error) -> btleplug::Error {
+    if is_not_authorized_error(&err) {
+        BtleplugError::Other(
+            format!(
+                "Operation not authorized while writing to BLE MIDI characteristic. \
+                 Many devices require pairing/bonding before they accept MIDI writes. \
+                 Pair the device (for example via `bluetoothctl pair/trust/connect`) and retry. \
+                 Original error: {}",
+                err
+            )
+            .into(),
+        )
+    } else {
+        err
+    }
 }

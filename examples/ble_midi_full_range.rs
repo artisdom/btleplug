@@ -170,9 +170,9 @@ fn find_midi_characteristic(peripheral: &impl Peripheral) -> Option<btleplug::ap
         })
 }
 
-fn ble_midi_message(is_note_on: bool, note: u8, velocity: u8) -> [u8; 4] {
+fn ble_midi_message(is_note_on: bool, note: u8, velocity: u8) -> [u8; 5] {
     let status = if is_note_on { 0x90 } else { 0x80 };
-    [0x80, status, note, velocity]
+    [0x80, 0x80, status, note, velocity]
 }
 
 async fn write_with_fallback(

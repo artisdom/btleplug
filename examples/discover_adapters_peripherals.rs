@@ -40,6 +40,13 @@ async fn main() -> anyhow::Result<()> {
                     "Peripheral {:?} is connected: {:?}",
                     local_name, is_connected
                 );
+
+                // skip if name not contains "MIDI"
+                if !local_name.contains("MIDI") {
+                    println!("Skipping peripheral {:?} by name filter...", &local_name);
+                    continue;
+                }
+
                 if !is_connected {
                     println!("Connecting to peripheral {:?}...", &local_name);
                     if let Err(err) = peripheral.connect().await {
